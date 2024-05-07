@@ -1,0 +1,10 @@
+images/
+labels/
+archive.zip
+generate_csv.py
+get_data
+test.py
+test.csv
+train.csv
+8examples.csv
+100examples.csv
