@@ -1,3 +1,5 @@
+# 代码来源：https://github.com/aladdinpersson/Machine-Learning-Collection
+
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,15 +8,15 @@ from collections import Counter
 
 def intersection_over_union(boxes_preds, boxes_labels, box_format="midpoint"):
     """
-    Calculates intersection over union
+    计算交并比
 
-    Parameters:
-        boxes_preds (tensor): Predictions of Bounding Boxes (BATCH_SIZE, 4)
-        boxes_labels (tensor): Correct labels of Bounding Boxes (BATCH_SIZE, 4)
-        box_format (str): midpoint/corners, if boxes (x,y,w,h) or (x1,y1,x2,y2)
+    参数：
+        boxes_preds (tensor): 边界框的预测值 (BATCH_SIZE, 4)
+        boxes_labels (tensor): 边界框的正确标签 (BATCH_SIZE, 4)
+        box_format (str): 使用的边界框格式，'midpoint' 或 'corners'
 
-    Returns:
-        tensor: Intersection over union for all examples
+    返回：
+        tensor: 所有样本的交并比
     """
 
     if box_format == "midpoint":
@@ -53,17 +55,16 @@ def intersection_over_union(boxes_preds, boxes_labels, box_format="midpoint"):
 
 def non_max_suppression(bboxes, iou_threshold, threshold, box_format="corners"):
     """
-    Does Non Max Suppression given bboxes
+    执行非最大抑制
 
-    Parameters:
-        bboxes (list): list of lists containing all bboxes with each bboxes
-        specified as [class_pred, prob_score, x1, y1, x2, y2]
-        iou_threshold (float): threshold where predicted bboxes is correct
-        threshold (float): threshold to remove predicted bboxes (independent of IoU) 
-        box_format (str): "midpoint" or "corners" used to specify bboxes
+    参数：
+        bboxes (list): 包含所有边界框的列表，每个边界框格式为 [class_pred, prob_score, x1, y1, x2, y2]
+        iou_threshold (float): IoU 阈值，超过此值的边界框视为正确
+        threshold (float): 置信度阈值，低于此值的边界框将被移除
+        box_format (str): 边界框格式，'midpoint' 或 'corners'
 
-    Returns:
-        list: bboxes after performing NMS given a specific IoU threshold
+    返回：
+        list: 执行NMS后的边界框列表
     """
 
     assert type(bboxes) == list
@@ -96,18 +97,17 @@ def mean_average_precision(
     pred_boxes, true_boxes, iou_threshold=0.5, box_format="midpoint", num_classes=20
 ):
     """
-    Calculates mean average precision 
+    计算平均精度均值
 
-    Parameters:
-        pred_boxes (list): list of lists containing all bboxes with each bboxes
-        specified as [train_idx, class_prediction, prob_score, x1, y1, x2, y2]
-        true_boxes (list): Similar as pred_boxes except all the correct ones 
-        iou_threshold (float): threshold where predicted bboxes is correct
-        box_format (str): "midpoint" or "corners" used to specify bboxes
-        num_classes (int): number of classes
+    参数：
+        pred_boxes (list): 预测边界框列表，格式为 [train_idx, class_prediction, prob_score, x1, y1, x2, y2]
+        true_boxes (list): 真实边界框列表，格式与 pred_boxes 相同
+        iou_threshold (float): IoU 阈值
+        box_format (str): 边界框格式
+        num_classes (int): 类别数
 
-    Returns:
-        float: mAP value across all classes given a specific IoU threshold 
+    返回：
+        float: 给定IoU阈值下所有类别的mAP值
     """
 
     # list storing all AP for respective classes
@@ -201,7 +201,16 @@ def mean_average_precision(
 
 
 def plot_image(image, boxes):
-    """Plots predicted bounding boxes on the image"""
+    """
+    在图像上绘制预测的边界框
+
+    参数：
+        image (array): 图像数组
+        boxes (list): 边界框列表，格式为 [x, y, w, h]
+
+    作用：
+        将边界框绘制在图像上并显示
+    """
     im = np.array(image)
     height, width, _ = im.shape
 
@@ -241,6 +250,21 @@ def get_bboxes(
     box_format="midpoint",
     device="cuda",
 ):
+    """
+    从模型预测中获取边界框
+
+    参数：
+        loader (DataLoader): 数据加载器
+        model (Model): 使用的模型
+        iou_threshold (float): IoU 阈值
+        threshold (float): 置信度阈值
+        pred_format (str): 预测格式，如 'cells'
+        box_format (str): 边界框格式
+        device (str): 使用的设备，如 'cuda' 或 'cpu'
+
+    返回：
+        tuple: 包含所有预测和真实边界框的列表
+    """
     all_pred_boxes = []
     all_true_boxes = []
 
@@ -289,13 +313,14 @@ def get_bboxes(
 
 def convert_cellboxes(predictions, S=7):
     """
-    Converts bounding boxes output from Yolo with
-    an image split size of S into entire image ratios
-    rather than relative to cell ratios. Tried to do this
-    vectorized, but this resulted in quite difficult to read
-    code... Use as a black box? Or implement a more intuitive,
-    using 2 for loops iterating range(S) and convert them one
-    by one, resulting in a slower but more readable implementation.
+    将YOLO输出的单元格格式边界框转换为整个图像的比例
+
+    参数：
+        predictions (tensor): 预测输出
+        S (int): 图像分割大小
+
+    返回：
+        tensor: 转换后的边界框
     """
 
     predictions = predictions.to("cpu")
@@ -325,6 +350,16 @@ def convert_cellboxes(predictions, S=7):
 
 
 def cellboxes_to_boxes(out, S=7):
+    """
+    将单元格格式的预测转换为标准边界框格式
+
+    参数：
+        out (tensor): 模型输出
+        S (int): 分割大小
+
+    返回：
+        list: 转换后的边界框列表
+    """
     converted_pred = convert_cellboxes(out).reshape(out.shape[0], S * S, -1)
     converted_pred[..., 0] = converted_pred[..., 0].long()
     all_bboxes = []
@@ -339,11 +374,26 @@ def cellboxes_to_boxes(out, S=7):
     return all_bboxes
 
 def save_checkpoint(state, filename="my_checkpoint.pth.tar"):
+    """
+    保存模型检查点
+
+    参数：
+        state (dict): 包含模型和优化器状态的字典
+        filename (str): 保存的文件名
+    """
     print("=> Saving checkpoint")
     torch.save(state, filename)
 
 
 def load_checkpoint(checkpoint, model, optimizer):
+    """
+    加载模型检查点
+
+    参数：
+        checkpoint (dict): 包含状态的字典
+        model (Model): 模型
+        optimizer (Optimizer): 优化器
+    """
     print("=> Loading checkpoint")
     model.load_state_dict(checkpoint["state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer"])
