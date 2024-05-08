@@ -1,56 +1,47 @@
-"""
-Implementation of Yolo Loss Function from the original yolo paper
-
-"""
-
 import torch
 import torch.nn as nn
 from utils import intersection_over_union
 
-
 class YoloLoss(nn.Module):
     """
-    Calculate the loss for yolo (v1) model
+    计算YOLO（v1）模型的损失
     """
-
     def __init__(self, S=7, B=2, C=20):
         super(YoloLoss, self).__init__()
-        self.mse = nn.MSELoss(reduction="sum")
+        self.mse = nn.MSELoss(reduction="sum")  # 使用均方误差损失
 
         """
-        S is split size of image (in paper 7),
-        B is number of boxes (in paper 2),
-        C is number of classes (in paper and VOC dataset is 20),
+        S为图像分割的大小（论文中为7），
+        B为每个单元格预测的边界框数量（论文中为2），
+        C为类别数量（VOC数据集和论文中为20），
         """
         self.S = S
         self.B = B
         self.C = C
 
-        # These are from Yolo paper, signifying how much we should
-        # pay loss for no object (noobj) and the box coordinates (coord)
+        # 这些是从YOLO论文中得到的，表明对于没有物体的损失(noobj)和边界框坐标的损失(coord)的权重
         self.lambda_noobj = 0.5
         self.lambda_coord = 5
 
     def forward(self, predictions, target):
-        # predictions are shaped (BATCH_SIZE, S*S(C+B*5) when inputted
+        # 预测的形状为 (BATCH_SIZE, S*S*(C+B*5)) 当输入
         predictions = predictions.reshape(-1, self.S, self.S, self.C + self.B * 5)
 
-        # Calculate IoU for the two predicted bounding boxes with target bbox
+        # 计算与目标边界框的两个预测边界框的IoU
         iou_b1 = intersection_over_union(predictions[..., 21:25], target[..., 21:25])
         iou_b2 = intersection_over_union(predictions[..., 26:30], target[..., 21:25])
         ious = torch.cat([iou_b1.unsqueeze(0), iou_b2.unsqueeze(0)], dim=0)
 
-        # Take the box with highest IoU out of the two prediction
-        # Note that bestbox will be indices of 0, 1 for which bbox was best
+        # 从两个预测中选择IoU最高的边界框
+        # bestbox将是0或1的索引，表示哪个边界框更好
         iou_maxes, bestbox = torch.max(ious, dim=0)
-        exists_box = target[..., 20].unsqueeze(3)  # in paper this is Iobj_i
+        exists_box = target[..., 20].unsqueeze(3)  # 文中为 Iobj_i
 
         # ======================== #
-        #   FOR BOX COORDINATES    #
+        #   处理边界框坐标的损失    #
         # ======================== #
 
-        # Set boxes with no object in them to 0. We only take out one of the two 
-        # predictions, which is the one with highest Iou calculated previously.
+        # 对没有物体的单元格设置为0。我们只取出预测中IoU最高的一个边界框。
         box_predictions = exists_box * (
             (
                 bestbox * predictions[..., 26:30]
@@ -60,7 +51,7 @@ class YoloLoss(nn.Module):
 
         box_targets = exists_box * target[..., 21:25]
 
-        # Take sqrt of width, height of boxes to ensure that
+        # 为了确保对小框的精确预测，取宽度和高度的平方根
         box_predictions[..., 2:4] = torch.sign(box_predictions[..., 2:4]) * torch.sqrt(
             torch.abs(box_predictions[..., 2:4] + 1e-6)
         )
@@ -72,10 +63,10 @@ class YoloLoss(nn.Module):
         )
 
         # ==================== #
-        #   FOR OBJECT LOSS    #
+        #   处理有物体的损失    #
         # ==================== #
 
-        # pred_box is the confidence score for the bbox with highest IoU
+        # pred_box是具有最高IoU的边界框的置信度得分
         pred_box = (
             bestbox * predictions[..., 25:26] + (1 - bestbox) * predictions[..., 20:21]
         )
@@ -86,14 +77,8 @@ class YoloLoss(nn.Module):
         )
 
         # ======================= #
-        #   FOR NO OBJECT LOSS    #
+        #   处理没有物体的损失    #
         # ======================= #
-
-        #max_no_obj = torch.max(predictions[..., 20:21], predictions[..., 25:26])
-        #no_object_loss = self.mse(
-        #    torch.flatten((1 - exists_box) * max_no_obj, start_dim=1),
-        #    torch.flatten((1 - exists_box) * target[..., 20:21], start_dim=1),
-        #)
 
         no_object_loss = self.mse(
             torch.flatten((1 - exists_box) * predictions[..., 20:21], start_dim=1),
@@ -106,7 +91,7 @@ class YoloLoss(nn.Module):
         )
 
         # ================== #
-        #   FOR CLASS LOSS   #
+        #   处理类别的损失    #
         # ================== #
 
         class_loss = self.mse(
@@ -115,10 +100,10 @@ class YoloLoss(nn.Module):
         )
 
         loss = (
-            self.lambda_coord * box_loss  # first two rows in paper
-            + object_loss  # third row in paper
-            + self.lambda_noobj * no_object_loss  # forth row
-            + class_loss  # fifth row
+            self.lambda_coord * box_loss  # 论文中的前两行
+            + object_loss  # 论文中的第三行
+            + self.lambda_noobj * no_object_loss  # 论文中的第四行
+            + class_loss  # 论文中的第五行
         )
 
         return loss
